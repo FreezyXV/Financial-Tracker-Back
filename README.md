@@ -1,61 +1,54 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Registre — API (Laravel 12)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+API REST du gestionnaire de finances personnelles **Registre** : comptes, opérations, budgets, investissements (PEA, CTO, crypto), bilans mensuels/annuels, objectifs, échéances et projection.
+Front Angular : [Financial-Tracker-Front](https://github.com/FreezyXV/Financial-Tracker-Front).
 
-## About Laravel
+## Démarrage
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+```bash
+composer install
+cp .env.example .env && php artisan key:generate
+touch database/database.sqlite
+php artisan migrate:fresh --seed   # données de démo : demo@finance.test / password
+php artisan serve                  # http://127.0.0.1:8000
+```
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Tâches planifiées (`php artisan schedule:work` en local, cron `schedule:run` en production) :
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+| Commande | Rôle |
+|---|---|
+| `finance:post-recurring` | Passe en écriture les échéances arrivées à terme (6 h) |
+| `finance:refresh-prices` | Met à jour les cours Yahoo Finance / CoinGecko (jours ouvrés) |
 
-## Learning Laravel
+Tests : `php artisan test` (20 tests : PRU, devises, plafond PEA, XIRR, import, bilans, alertes, cloisonnement des données).
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Architecture
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+| Élément | Rôle |
+|---|---|
+| `app/Services/WealthEngine.php` | Moteur de calcul : soldes, positions au prix moyen pondéré, valorisation EUR, patrimoine à n'importe quelle date, historique, TRI |
+| `app/Services/ReportService.php` | Bilans mensuels/annuels, budgets (report, projection), règle 50/30/20, constats automatiques |
+| `app/Services/Categorizer.php` | Catégorisation : règles « mot1\|mot2 » puis apprentissage sur l'historique |
+| `app/Services/RecurringService.php` | Échéances, projection 30 jours, détection d'abonnements |
+| `app/Services/PriceService.php` | Cotations, historique 2 ans, recherche d'instruments, change |
+| `app/Support/Xirr.php` | Taux de rendement interne (Newton + dichotomie) |
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Conventions : montants de transactions toujours positifs (le sens vient du `type`), un virement vers un PEA/CTO est un **apport**, les achats/ventes sont des `investment_operations` qui mouvementent les espèces de l'enveloppe.
 
-## Laravel Sponsors
+## Endpoints (Bearer token Sanctum)
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+`POST /api/register`, `POST /api/login`, `GET|PUT /api/me`, `POST /api/logout`
 
-### Premium Partners
+| Synthèses | Ressources (CRUD) | Actions |
+|---|---|---|
+| `GET /dashboard` | `accounts`, `categories`, `transactions` | `POST /transactions/import`, `POST /transactions/bulk`, `GET /transactions/export` |
+| `GET /reports/monthly?month=YYYY-MM` | `budgets?month=`, `goals`, `rules` | `POST /rules/apply` |
+| `GET /reports/yearly?year=` | `recurring`, `assets`, `operations` | `POST /recurring/post`, `GET /recurring/suggestions` |
+| `GET /net-worth?months=`, `GET /portfolio` | `alerts` (lecture, lu, suppression) | `POST /assets/refresh`, `GET /assets/search?q=`, `POST /alerts/read-all` |
+| `GET /simulator/defaults` | | |
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development/)**
-- **[Active Logic](https://activelogic.com)**
+## Production
 
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+- `DB_CONNECTION=pgsql` ou `mysql`, `APP_ENV=production`, `APP_DEBUG=false`.
+- `CORS_ALLOWED_ORIGINS` = domaine du front.
+- Cron : `* * * * * php artisan schedule:run`.

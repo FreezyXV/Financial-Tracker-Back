@@ -2,19 +2,23 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class Budget extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
-        'category_id',
-        'amount',
-        'start_date',
-        'end_date',
+        'user_id', 'category_id', 'amount', 'start_date', 'end_date', 'rollover', 'alert_threshold',
+    ];
+
+    protected $casts = [
+        'amount' => 'float',
+        'start_date' => 'date:Y-m-d',
+        'end_date' => 'date:Y-m-d',
+        'rollover' => 'boolean',
+        'alert_threshold' => 'integer',
     ];
 
     public function user()

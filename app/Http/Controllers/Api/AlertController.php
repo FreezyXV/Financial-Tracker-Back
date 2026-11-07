@@ -3,47 +3,37 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Alert;
 use Illuminate\Http\Request;
 
 class AlertController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $q = Alert::where('user_id', $request->user()->id);
+        if ($request->boolean('unread')) {
+            $q->where('is_read', false);
+        }
+
+        return $q->latest()->limit(100)->get();
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function update(Request $request, Alert $alert)
     {
-        //
+        $this->owned($request, $alert)->update($request->validate(['is_read' => 'required|boolean']));
+
+        return $alert;
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function readAll(Request $request)
     {
-        //
+        return ['updated' => Alert::where('user_id', $request->user()->id)->where('is_read', false)->update(['is_read' => true])];
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function destroy(Request $request, Alert $alert)
     {
-        //
-    }
+        $this->owned($request, $alert)->delete();
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return response()->noContent();
     }
 }
