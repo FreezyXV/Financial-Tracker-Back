@@ -25,6 +25,8 @@ class User extends Authenticatable
         'currency',
         'savings_rate_target',
         'large_transaction_threshold',
+        'profile',
+        'onboarded_at',
     ];
 
     /**
@@ -49,7 +51,15 @@ class User extends Authenticatable
             'password' => 'hashed',
             'savings_rate_target' => 'float',
             'large_transaction_threshold' => 'float',
+            'profile' => 'array',
+            'onboarded_at' => 'datetime',
         ];
+    }
+
+    /** Valeur du profil financier (questionnaire d'accueil). */
+    public function pref(string $key, mixed $default = null): mixed
+    {
+        return data_get($this->profile ?? [], $key, $default);
     }
 
     public function accounts()

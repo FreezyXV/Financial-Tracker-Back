@@ -35,6 +35,14 @@ class DatabaseSeeder extends Seeder
         $this->user = User::create([
             'name' => 'Compte démo', 'email' => 'demo@finance.test', 'password' => 'password',
             'savings_rate_target' => 25, 'large_transaction_threshold' => 400,
+            'onboarded_at' => now(),
+            'profile' => [
+                'birth_year' => 1996, 'country' => 'FR', 'household' => 'single', 'children' => 0,
+                'employment' => 'cdi', 'housing' => 'tenant', 'monthly_income' => 3450, 'payday' => 1,
+                'housing_cost' => 980, 'other_fixed_costs' => 450, 'variable_spending' => 900,
+                'goals' => ['emergency', 'home', 'expat', 'fire'], 'experience' => 'intermediate',
+                'risk' => 'balanced', 'horizon' => 'long', 'monthly_invest' => 750, 'budget_method' => '50_30_20',
+            ],
         ]);
         DefaultCategories::seed($this->user);
         $this->cat = Category::where('user_id', $this->user->id)->pluck('id', 'name')->all();

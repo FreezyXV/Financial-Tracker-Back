@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\BudgetController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\GoalController;
 use App\Http\Controllers\Api\InsightController;
+use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\OperationController;
 use App\Http\Controllers\Api\RecurringController;
 use App\Http\Controllers\Api\RuleController;
@@ -25,6 +26,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/me', [AuthController::class, 'update']);
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Questionnaire d'accueil et conseils personnalisés
+    Route::get('/onboarding', [OnboardingController::class, 'show']);
+    Route::post('/onboarding', [OnboardingController::class, 'store']);
+    Route::post('/onboarding/preview', [OnboardingController::class, 'preview']);
+    Route::post('/onboarding/skip', [OnboardingController::class, 'skip']);
+    Route::get('/recommendations', [OnboardingController::class, 'recommendations']);
 
     // Synthèses
     Route::get('/dashboard', [InsightController::class, 'dashboard']);

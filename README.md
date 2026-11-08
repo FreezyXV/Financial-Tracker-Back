@@ -20,7 +20,7 @@ Tâches planifiées (`php artisan schedule:work` en local, cron `schedule:run` e
 | `finance:post-recurring` | Passe en écriture les échéances arrivées à terme (6 h) |
 | `finance:refresh-prices` | Met à jour les cours Yahoo Finance / CoinGecko (jours ouvrés) |
 
-Tests : `php artisan test` (20 tests : PRU, devises, plafond PEA, XIRR, import, bilans, alertes, cloisonnement des données).
+Tests : `php artisan test` (25 tests : PRU, devises, plafond PEA, XIRR, import, bilans, alertes, cloisonnement des données).
 
 ## Architecture
 
@@ -31,6 +31,8 @@ Tests : `php artisan test` (20 tests : PRU, devises, plafond PEA, XIRR, import, 
 | `app/Services/Categorizer.php` | Catégorisation : règles « mot1\|mot2 » puis apprentissage sur l'historique |
 | `app/Services/RecurringService.php` | Échéances, projection 30 jours, détection d'abonnements |
 | `app/Services/PriceService.php` | Cotations, historique 2 ans, recherche d'instruments, change |
+| `app/Services/OnboardingService.php` | Questionnaire d'accueil → profil, comptes, catégories selon la situation, objectifs, budgets calibrés, échéancier ; coussin de sécurité et TMI estimée |
+| `app/Services/RecommendationService.php` | Plan d'action personnalisé : profil déclaré × données réelles |
 | `app/Support/Xirr.php` | Taux de rendement interne (Newton + dichotomie) |
 
 Conventions : montants de transactions toujours positifs (le sens vient du `type`), un virement vers un PEA/CTO est un **apport**, les achats/ventes sont des `investment_operations` qui mouvementent les espèces de l'enveloppe.
@@ -38,6 +40,8 @@ Conventions : montants de transactions toujours positifs (le sens vient du `type
 ## Endpoints (Bearer token Sanctum)
 
 `POST /api/register`, `POST /api/login`, `GET|PUT /api/me`, `POST /api/logout`
+
+Personnalisation : `GET|POST /onboarding`, `POST /onboarding/preview`, `POST /onboarding/skip`, `GET /recommendations`
 
 | Synthèses | Ressources (CRUD) | Actions |
 |---|---|---|

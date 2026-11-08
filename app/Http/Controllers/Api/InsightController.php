@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Alert;
 use App\Models\Goal;
 use App\Models\Transaction;
+use App\Services\RecommendationService;
 use App\Services\RecurringService;
 use App\Services\ReportService;
 use App\Services\WealthEngine;
@@ -58,6 +59,7 @@ class InsightController extends Controller
                 'liquid_savings' => round($liquid, 2),
                 'savings_rate_target' => $user->savings_rate_target,
             ],
+            'recommendations' => array_slice(RecommendationService::for($user, $engine), 0, 5),
             'unread_alerts' => Alert::where('user_id', $user->id)->where('is_read', false)->count(),
             'uncategorized' => Transaction::where('user_id', $user->id)->whereNull('category_id')->where('type', '!=', 'transfer')->count(),
         ];
@@ -110,7 +112,13 @@ class InsightController extends Controller
         $sav = count($last) ? array_sum(array_column($last, 'savings')) / count($last) : 0;
         $nw = $engine->netWorth();
 
+        $p = $user->profile ?? [];
+
         return [
+            'birth_year' => $p['birth_year'] ?? null,
+            'risk' => $p['risk'] ?? null,
+            'monthly_invest' => $p['monthly_invest'] ?? null,
+            'goals' => $p['goals'] ?? [],
             'net_worth' => $nw['net_worth'],
             'invested' => $engine->portfolio()['totals']['value'],
             'monthly_expense' => round($exp, 2),
