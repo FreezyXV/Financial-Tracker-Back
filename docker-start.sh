@@ -1,5 +1,8 @@
 #!/bin/sh
 # Démarrage production : migrations avec reprises (réveil de Neon), puis serveur HTTP.
+# Cache applicatif (limitation des tentatives de connexion…) sur disque local plutôt qu'en base :
+# évite plusieurs allers-retours réseau vers PostgreSQL à chaque connexion. Instance unique.
+export CACHE_STORE=file
 php artisan config:clear
 mkdir -p storage/logs
 ok=0

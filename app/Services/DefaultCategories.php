@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CategorizationRule;
 use App\Models\Category;
 use App\Models\User;
 
@@ -52,18 +53,21 @@ class DefaultCategories
         'Salaire' => 'salaire|paie|payroll',
     ];
 
+    /** Création en deux requêtes groupées (au lieu d'une par ligne) : rapide même avec une base distante. */
     public static function seed(User $user): void
     {
-        $byName = [];
-        foreach (self::LIST as [$name, $type, $color, $icon, $essential]) {
-            $byName[$name] = Category::create([
-                'user_id' => $user->id, 'name' => $name, 'type' => $type,
-                'color' => $color, 'icon' => $icon, 'is_essential' => $essential,
-            ]);
-        }
+        $now = now();
+        Category::insert(array_map(fn ($c) => [
+            'user_id' => $user->id, 'name' => $c[0], 'type' => $c[1], 'color' => $c[2], 'icon' => $c[3],
+            'is_essential' => $c[4], 'created_at' => $now, 'updated_at' => $now,
+        ], self::LIST));
+        $ids = Category::where('user_id', $user->id)->pluck('id', 'name');
+        $rules = [];
         $p = 10;
         foreach (self::RULES as $name => $pattern) {
-            $user->rules()->create(['category_id' => $byName[$name]->id, 'pattern' => $pattern, 'priority' => $p += 10]);
+            $rules[] = ['user_id' => $user->id, 'category_id' => $ids[$name], 'pattern' => $pattern,
+                'priority' => $p += 10, 'created_at' => $now, 'updated_at' => $now];
         }
+        CategorizationRule::insert($rules);
     }
 }
