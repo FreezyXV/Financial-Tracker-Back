@@ -8,6 +8,7 @@ for i in 1 2 3 4 5; do
   echo "Migration attempt $i failed, retrying in 5s"; sleep 5
 done
 [ "$ok" = 1 ] && echo "Migrations OK" || { echo "MIGRATIONS FAILED"; cat storage/logs/boot-migrate.log; }
+[ "$ok" = 1 ] && php artisan finance:purge-test-accounts
 # Compte de démonstration (demo@finance.test) recréé à chaque déploiement ; SEED_DEMO=false pour désactiver.
 if [ "$ok" = 1 ] && [ "${SEED_DEMO:-true}" != "false" ]; then
   php artisan db:seed --force && echo "Demo account seeded" || echo "Demo seed failed"

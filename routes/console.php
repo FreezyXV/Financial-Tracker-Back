@@ -21,5 +21,11 @@ Artisan::command('finance:refresh-prices', function () {
     });
 })->purpose('Met à jour les cours (Yahoo Finance, CoinGecko)');
 
+Artisan::command('finance:purge-test-accounts', function () {
+    // Comptes créés par les tests de bout en bout (domaine réservé example.com, jamais un vrai utilisateur).
+    $n = User::where('email', 'like', 'test-claude-%@example.com')->delete();
+    $this->info("$n compte(s) de test supprimé(s).");
+})->purpose('Supprime les comptes créés par les tests automatisés');
+
 Schedule::command('finance:post-recurring')->dailyAt('06:00');
 Schedule::command('finance:refresh-prices')->weekdays()->hourlyAt(17)->between('9:00', '22:00');
