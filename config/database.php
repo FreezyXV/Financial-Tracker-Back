@@ -97,6 +97,9 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => 'prefer',
+            // Connexion conservée entre les requêtes d'un même processus : évite de renégocier
+            // TCP + TLS + authentification à chaque appel (base distante type Neon).
+            'options' => env('DB_PERSISTENT', false) ? [PDO::ATTR_PERSISTENT => true] : [],
         ],
 
         'sqlsrv' => [

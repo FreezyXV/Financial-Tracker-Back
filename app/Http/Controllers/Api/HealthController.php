@@ -19,10 +19,18 @@ class HealthController extends Controller
             'pooled' => str_contains($url, '-pooler'),
         ];
         try {
+            $host = (string) $db['host'];
+            $t = microtime(true);
+            $db['dns'] = $host ? ['ipv4' => count(gethostbynamel($host) ?: []), 'ipv6' => count(@dns_get_record($host, DNS_AAAA) ?: [])] : null;
+            $db['dns_ms'] = round((microtime(true) - $t) * 1000, 1);
             $t = microtime(true);
             DB::select('select 1');
             $db['status'] = 'ok';
-            $db['latency_ms'] = round((microtime(true) - $t) * 1000, 1);
+            $db['latency_ms'] = round((microtime(true) - $t) * 1000, 1); // connexion (si nouvelle) + requête
+            $t = microtime(true);
+            DB::select('select 1');
+            $db['query_ms'] = round((microtime(true) - $t) * 1000, 1); // aller-retour seul
+            $db['persistent'] = (bool) DB::connection()->getPdo()->getAttribute(\PDO::ATTR_PERSISTENT);
             $db['migrated'] = Schema::hasTable('transactions');
             $log = storage_path('logs/boot-migrate.log');
             if (! $db['migrated'] && is_file($log)) {

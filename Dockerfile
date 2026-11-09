@@ -23,6 +23,7 @@ RUN composer dump-autoload --optimize --no-dev \
  && chmod -R 775 storage bootstrap/cache
 
 ENV APP_ENV=production \
+    DB_PERSISTENT=true \
     LOG_CHANNEL=stderr \
     PHP_CLI_SERVER_WORKERS=4 \
     PORT=8080
