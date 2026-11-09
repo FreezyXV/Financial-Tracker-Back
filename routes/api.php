@@ -19,14 +19,15 @@ use Illuminate\Support\Facades\Schema;
 
 // Diagnostic de déploiement (aucun secret exposé)
 Route::get('/health', function () {
-    $db = ['connection' => config('database.default')];
+    $url = (string) config('database.connections.pgsql.url');
+    $db = ['connection' => config('database.default'), 'host' => $url ? parse_url($url, PHP_URL_HOST) : null, 'pooled' => str_contains($url, '-pooler')];
     try {
         DB::select('select 1');
         $db['status'] = 'ok';
         $db['migrated'] = Schema::hasTable('transactions');
         $log = storage_path('logs/boot-migrate.log');
         if (! $db['migrated'] && is_file($log)) {
-            $db['migrate_log'] = mb_substr(preg_replace('#\w+://\S+#', '[url]', (string) file_get_contents($log)), -700);
+            $db['migrate_log'] = mb_substr(preg_replace('#\w+://\S+#', '[url]', (string) file_get_contents($log)), 0, 900);
         }
     } catch (Throwable $e) {
         $db['status'] = 'error';
@@ -35,9 +36,7 @@ Route::get('/health', function () {
         if (preg_match('/failed: (.{0,160})/s', $e->getMessage(), $m)) {
             $db['detail'] = preg_replace('#\w+://\S+#', '[url]', strtok($m[1], '(') ?: $m[1]);
         }
-        $url = (string) config('database.connections.pgsql.url');
         $db['url_set'] = $url !== '';
-        $db['host'] = $url ? parse_url($url, PHP_URL_HOST) : config('database.connections.pgsql.host');
     }
 
     return response()->json([
