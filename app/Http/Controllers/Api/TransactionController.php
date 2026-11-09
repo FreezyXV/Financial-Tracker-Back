@@ -38,7 +38,7 @@ class TransactionController extends Controller
             $q->where('type', $type);
         }
         if ($s = $request->query('search')) {
-            $q->where(fn ($w) => $w->where('description', 'like', "%$s%")->orWhere('notes', 'like', "%$s%"));
+            $q->where(fn ($w) => $w->whereLike('description', "%$s%")->orWhereLike('notes', "%$s%"));
         }
         if ($min = $request->query('min')) {
             $q->where('amount', '>=', $min);
