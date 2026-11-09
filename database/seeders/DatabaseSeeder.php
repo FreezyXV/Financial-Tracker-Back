@@ -33,7 +33,7 @@ class DatabaseSeeder extends Seeder
         mt_srand(42);
         User::where('email', 'demo@finance.test')->delete();
         $this->user = User::create([
-            'name' => 'Compte démo', 'email' => 'demo@finance.test', 'password' => 'password',
+            'name' => 'Alex Martin', 'email' => 'demo@finance.test', 'password' => 'password',
             'savings_rate_target' => 25, 'large_transaction_threshold' => 400,
             'onboarded_at' => now(),
             'profile' => [
