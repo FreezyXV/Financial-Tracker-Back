@@ -7,47 +7,17 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BudgetController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\GoalController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InsightController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\OperationController;
 use App\Http\Controllers\Api\RecurringController;
 use App\Http\Controllers\Api\RuleController;
 use App\Http\Controllers\Api\TransactionController;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Schema;
 
 // Diagnostic de déploiement (aucun secret exposé)
-Route::get('/health', function () {
-    $url = (string) config('database.connections.pgsql.url');
-    $db = ['connection' => config('database.default'), 'host' => $url ? parse_url($url, PHP_URL_HOST) : null, 'pooled' => str_contains($url, '-pooler')];
-    try {
-        DB::select('select 1');
-        $db['status'] = 'ok';
-        $db['migrated'] = Schema::hasTable('transactions');
-        $log = storage_path('logs/boot-migrate.log');
-        if (! $db['migrated'] && is_file($log)) {
-            $db['migrate_log'] = mb_substr(preg_replace('#\w+://\S+#', '[url]', (string) file_get_contents($log)), 0, 900);
-        }
-    } catch (Throwable $e) {
-        $db['status'] = 'error';
-        $db['error'] = class_basename($e).(preg_match('/SQLSTATE\[\w+\]/', $e->getMessage(), $m) ? ' '.$m[0] : '');
-        // Cause libpq (hôte, « password authentication failed »…) sans identifiants ni mot de passe.
-        if (preg_match('/failed: (.{0,160})/s', $e->getMessage(), $m)) {
-            $db['detail'] = preg_replace('#\w+://\S+#', '[url]', strtok($m[1], '(') ?: $m[1]);
-        }
-        $db['url_set'] = $url !== '';
-    }
-
-    return response()->json([
-        'app' => 'ok',
-        'env' => app()->environment(),
-        'debug' => (bool) config('app.debug'),
-        'key_set' => (bool) config('app.key'),
-        'cors_origins' => config('cors.allowed_origins'),
-        'db' => $db,
-    ], $db['status'] === 'ok' ? 200 : 503);
-});
+Route::get('/health', HealthController::class);
 
 // Public
 Route::middleware('throttle:10,1')->group(function () {

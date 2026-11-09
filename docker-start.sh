@@ -13,4 +13,6 @@ done
 if [ "$ok" = 1 ] && [ "${SEED_DEMO:-true}" != "false" ]; then
   php artisan db:seed --force && echo "Demo account seeded" || echo "Demo seed failed"
 fi
+# Caches de production (variables d'environnement disponibles à ce stade).
+php artisan config:cache && php artisan route:cache && php artisan event:cache || echo "Cache warmup failed"
 exec php artisan serve --host=0.0.0.0 --port="${PORT:-8080}"

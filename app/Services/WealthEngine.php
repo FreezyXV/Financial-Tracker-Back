@@ -54,6 +54,15 @@ class WealthEngine
 
     private string $today;
 
+    /** @var array<int, array{tx: array{0: string[], 1: float[]}, op: array{0: string[], 1: float[]}}> séries cumulées par compte */
+    private array $series = [];
+
+    /** @var array<int, array<int, array{0:string,1:float,2:float}>> derniers prix d'exécution par actif */
+    private array $tradePrices = [];
+
+    /** Mémoïsation des calculs coûteux (clé = date, compte…). */
+    private array $memo = [];
+
     public function __construct(public User $user)
     {
         $this->today = Carbon::today()->format('Y-m-d');
@@ -112,6 +121,79 @@ class WealthEngine
                 ];
             }
         }
+        $this->buildIndex();
+    }
+
+    /**
+     * Pré-calcule, pour chaque compte, les flux cumulés datés (transactions et opérations).
+     * Un solde à une date devient une recherche dichotomique : O(log n) au lieu de O(n).
+     */
+    private function buildIndex(): void
+    {
+        $raw = [];
+        foreach ($this->transactions as $t) {
+            $ids = $t->type === 'transfer' ? [(int) $t->account_id, (int) $t->transfer_account_id] : [(int) $t->account_id];
+            foreach (array_unique(array_filter($ids)) as $id) {
+                $raw[$id]['tx'][] = [$t->date, self::txDelta($t, $id)];
+            }
+        }
+        foreach ($this->operations as $o) {
+            $raw[(int) $o->account_id]['op'][] = [$o->date, $this->opCashImpact($o)];
+            if ($o->asset_id && in_array($o->type, ['buy', 'sell'], true)) {
+                $this->tradePrices[(int) $o->asset_id][] = [$o->date, $o->price, $o->fx_rate];
+            }
+        }
+        foreach ($raw as $id => $kinds) {
+            foreach (['tx', 'op'] as $kind) {
+                $dates = [];
+                $cum = [];
+                $sum = 0.0;
+                foreach ($kinds[$kind] ?? [] as [$date, $delta]) {
+                    $sum += $delta;
+                    $n = count($dates);
+                    if ($n && $dates[$n - 1] === $date) {
+                        $cum[$n - 1] = $sum; // même jour : on garde le cumul de fin de journée
+                    } else {
+                        $dates[] = $date;
+                        $cum[] = $sum;
+                    }
+                }
+                $this->series[$id][$kind] = [$dates, $cum];
+            }
+        }
+    }
+
+    /** Index du dernier élément dont la date est <= $at (-1 si aucun). */
+    private static function lastIndexAtOrBefore(array $dates, string $at, int $key = -1): int
+    {
+        $lo = 0;
+        $hi = count($dates) - 1;
+        $found = -1;
+        while ($lo <= $hi) {
+            $mid = ($lo + $hi) >> 1;
+            $d = $key < 0 ? $dates[$mid] : $dates[$mid][$key];
+            if ($d <= $at) {
+                $found = $mid;
+                $lo = $mid + 1;
+            } else {
+                $hi = $mid - 1;
+            }
+        }
+
+        return $found;
+    }
+
+    private function cumulative(int $accountId, string $kind, string $at): float
+    {
+        [$dates, $cum] = $this->series[$accountId][$kind] ?? [[], []];
+        $i = self::lastIndexAtOrBefore($dates, $at);
+
+        return $i < 0 ? 0.0 : $cum[$i];
+    }
+
+    private function remember(string $key, callable $fn): mixed
+    {
+        return array_key_exists($key, $this->memo) ? $this->memo[$key] : $this->memo[$key] = $fn();
     }
 
     /* ------------------------------------------------------------------ */
@@ -147,21 +229,9 @@ class WealthEngine
     public function cashBalance(Account $a, ?string $at = null): float
     {
         $at ??= $this->today;
-        $balance = $this->openedBy($a, $at) ? $a->opening_balance : 0.0;
-        foreach ($this->transactions as $t) {
-            if ($t->date > $at) {
-                break;
-            }
-            $balance += self::txDelta($t, $a->id);
-        }
-        foreach ($this->operations as $o) {
-            if ($o->date > $at) {
-                break;
-            }
-            if ((int) $o->account_id === $a->id) {
-                $balance += $this->opCashImpact($o);
-            }
-        }
+        $balance = ($this->openedBy($a, $at) ? $a->opening_balance : 0.0)
+            + $this->cumulative($a->id, 'tx', $at)
+            + $this->cumulative($a->id, 'op', $at);
 
         return round($balance, 2);
     }
@@ -191,26 +261,15 @@ class WealthEngine
         if ($at === null || $at >= $this->today) {
             return [$asset->current_price, $asset->fx_rate];
         }
-        $found = null;
-        foreach ($this->priceHistory[$assetId] ?? [] as $p) {
-            if ($p[0] > $at) {
-                break;
-            }
-            $found = $p;
-        }
-        if ($found) {
-            return [$found[1], $found[2]];
+        $history = $this->priceHistory[$assetId] ?? [];
+        $i = self::lastIndexAtOrBefore($history, $at, 0);
+        if ($i >= 0) {
+            return [$history[$i][1], $history[$i][2]];
         }
         // Repli : dernier prix d'exécution connu avant la date.
-        $last = null;
-        foreach ($this->operations as $o) {
-            if ($o->date > $at) {
-                break;
-            }
-            if ((int) $o->asset_id === $assetId && in_array($o->type, ['buy', 'sell'], true)) {
-                $last = [$o->price, $o->fx_rate];
-            }
-        }
+        $trades = $this->tradePrices[$assetId] ?? [];
+        $j = self::lastIndexAtOrBefore($trades, $at, 0);
+        $last = $j >= 0 ? [$trades[$j][1], $trades[$j][2]] : null;
 
         return $last ?? [$asset->current_price, $asset->fx_rate];
     }
@@ -226,13 +285,26 @@ class WealthEngine
      */
     public function holdings(?string $at = null, ?int $accountId = null, bool $includeClosed = false): array
     {
-        $at ??= $this->today;
+        $all = $this->positionsAt($at ?? $this->today);
+
+        return array_values(array_filter($all, fn ($p) => ($includeClosed || $p['quantity'] > 0)
+            && (! $accountId || $p['account_id'] === $accountId)));
+    }
+
+    /** Toutes les positions (ouvertes et soldées) à une date, calculées une seule fois. */
+    private function positionsAt(string $at): array
+    {
+        return $this->remember("positions|$at", fn () => $this->computePositions($at));
+    }
+
+    private function computePositions(string $at): array
+    {
         $state = [];
         foreach ($this->operations as $o) {
             if ($o->date > $at) {
                 break;
             }
-            if (! $o->asset_id || ($accountId && (int) $o->account_id !== $accountId)) {
+            if (! $o->asset_id) {
                 continue;
             }
             $key = $o->account_id.'-'.$o->asset_id;
@@ -275,9 +347,6 @@ class WealthEngine
 
         $positions = [];
         foreach ($state as $s) {
-            if (! $includeClosed && $s['quantity'] <= 0) {
-                continue;
-            }
             $asset = $this->assets[$s['asset_id']] ?? null;
             [$price, $fx] = $this->priceAt($s['asset_id'], $at === $this->today ? null : $at);
             $value = $s['quantity'] * $price * $fx;
@@ -320,6 +389,12 @@ class WealthEngine
     public function accountValue(Account $a, ?string $at = null): float
     {
         $at ??= $this->today;
+
+        return $this->remember("value|{$a->id}|$at", fn () => $this->computeAccountValue($a, $at));
+    }
+
+    private function computeAccountValue(Account $a, string $at): float
+    {
         if ($a->manual_value !== null) {
             return $this->openedBy($a, $at) ? (float) $a->manual_value : 0.0;
         }
@@ -337,13 +412,7 @@ class WealthEngine
     public function contributions(Account $a, ?string $at = null): float
     {
         $at ??= $this->today;
-        $total = $this->openedBy($a, $at) ? $a->opening_balance : 0.0;
-        foreach ($this->transactions as $t) {
-            if ($t->date > $at) {
-                break;
-            }
-            $total += self::txDelta($t, $a->id);
-        }
+        $total = ($this->openedBy($a, $at) ? $a->opening_balance : 0.0) + $this->cumulative($a->id, 'tx', $at);
 
         return round($total, 2);
     }
@@ -408,6 +477,12 @@ class WealthEngine
     public function netWorth(?string $at = null): array
     {
         $at ??= $this->today;
+
+        return $this->remember("nw|$at", fn () => $this->computeNetWorth($at));
+    }
+
+    private function computeNetWorth(string $at): array
+    {
         $assets = 0.0;
         $liabilities = 0.0;
         $byGroup = [];
@@ -543,6 +618,11 @@ class WealthEngine
 
     /** Synthèse complète du portefeuille d'investissement. */
     public function portfolio(): array
+    {
+        return $this->remember('portfolio', fn () => $this->computePortfolio());
+    }
+
+    private function computePortfolio(): array
     {
         $positions = $this->holdings();
         $accounts = [];

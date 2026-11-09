@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         // API en Bearer token : pas de redirection vers une page de login.
+        $middleware->api(append: [\App\Http\Middleware\CompressResponse::class]);
         $middleware->redirectGuestsTo(fn (Request $request) => $request->is('api/*') ? null : '/');
     })
     ->withExceptions(function (Exceptions $exceptions) {
