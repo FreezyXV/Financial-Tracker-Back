@@ -24,6 +24,4 @@ ENV APP_ENV=production \
 
 EXPOSE 8080
 
-# Migrations au démarrage (idempotentes). Le serveur démarre même si elles échouent,
-# pour que /api/health expose la cause au lieu d'un 502 muet.
-CMD php artisan config:clear; php artisan migrate --force || echo "MIGRATIONS FAILED"; php artisan serve --host=0.0.0.0 --port=${PORT}
+CMD ["sh", "docker-start.sh"]

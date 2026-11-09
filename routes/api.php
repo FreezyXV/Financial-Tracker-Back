@@ -24,6 +24,10 @@ Route::get('/health', function () {
         DB::select('select 1');
         $db['status'] = 'ok';
         $db['migrated'] = Schema::hasTable('transactions');
+        $log = storage_path('logs/boot-migrate.log');
+        if (! $db['migrated'] && is_file($log)) {
+            $db['migrate_log'] = mb_substr(preg_replace('#\w+://\S+#', '[url]', (string) file_get_contents($log)), -700);
+        }
     } catch (Throwable $e) {
         $db['status'] = 'error';
         $db['error'] = class_basename($e).(preg_match('/SQLSTATE\[\w+\]/', $e->getMessage(), $m) ? ' '.$m[0] : '');
