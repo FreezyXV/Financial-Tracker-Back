@@ -13,7 +13,31 @@ use App\Http\Controllers\Api\OperationController;
 use App\Http\Controllers\Api\RecurringController;
 use App\Http\Controllers\Api\RuleController;
 use App\Http\Controllers\Api\TransactionController;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
+
+// Diagnostic de déploiement (aucun secret exposé)
+Route::get('/health', function () {
+    $db = ['connection' => config('database.default')];
+    try {
+        DB::select('select 1');
+        $db['status'] = 'ok';
+        $db['migrated'] = Schema::hasTable('transactions');
+    } catch (Throwable $e) {
+        $db['status'] = 'error';
+        $db['error'] = class_basename($e).(preg_match('/SQLSTATE\[\w+\]/', $e->getMessage(), $m) ? ' '.$m[0] : '');
+    }
+
+    return response()->json([
+        'app' => 'ok',
+        'env' => app()->environment(),
+        'debug' => (bool) config('app.debug'),
+        'key_set' => (bool) config('app.key'),
+        'cors_origins' => config('cors.allowed_origins'),
+        'db' => $db,
+    ], $db['status'] === 'ok' ? 200 : 503);
+});
 
 // Public
 Route::middleware('throttle:10,1')->group(function () {
