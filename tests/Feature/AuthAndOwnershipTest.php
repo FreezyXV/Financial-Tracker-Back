@@ -24,6 +24,18 @@ class AuthAndOwnershipTest extends TestCase
         $this->assertGreaterThan(5, $user->rules()->count());
     }
 
+    public function test_user_can_delete_account_with_password(): void
+    {
+        $user = User::factory()->create(['password' => 'secret123']);
+        Account::create(['user_id' => $user->id, 'name' => 'A', 'type' => 'checking']);
+        Sanctum::actingAs($user);
+
+        $this->deleteJson('/api/me', ['password' => 'wrong'])->assertStatus(422);
+        $this->deleteJson('/api/me', ['password' => 'secret123'])->assertOk();
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+        $this->assertDatabaseMissing('accounts', ['user_id' => $user->id]);
+    }
+
     public function test_login_rejects_bad_password(): void
     {
         User::factory()->create(['email' => 'a@b.c']);

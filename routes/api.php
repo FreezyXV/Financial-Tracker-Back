@@ -59,6 +59,7 @@ Route::middleware('throttle:10,1')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/me', [AuthController::class, 'update']);
+    Route::delete('/me', [AuthController::class, 'destroy']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     // Questionnaire d'accueil et conseils personnalisés

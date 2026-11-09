@@ -69,6 +69,17 @@ class AuthController extends Controller
         return $user->fresh();
     }
 
+    /** Suppression définitive du compte et de toutes ses données (droit à l'effacement). */
+    public function destroy(Request $request)
+    {
+        $request->validate(['password' => 'required|current_password']);
+        $user = $request->user();
+        $user->tokens()->delete();
+        $user->delete();
+
+        return response()->json(['message' => 'Compte supprimé']);
+    }
+
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()?->delete();
