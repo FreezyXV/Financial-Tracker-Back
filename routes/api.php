@@ -27,6 +27,13 @@ Route::get('/health', function () {
     } catch (Throwable $e) {
         $db['status'] = 'error';
         $db['error'] = class_basename($e).(preg_match('/SQLSTATE\[\w+\]/', $e->getMessage(), $m) ? ' '.$m[0] : '');
+        // Cause libpq (hôte, « password authentication failed »…) sans identifiants ni mot de passe.
+        if (preg_match('/failed: (.{0,160})/s', $e->getMessage(), $m)) {
+            $db['detail'] = preg_replace('#\w+://\S+#', '[url]', strtok($m[1], '(') ?: $m[1]);
+        }
+        $url = (string) config('database.connections.pgsql.url');
+        $db['url_set'] = $url !== '';
+        $db['host'] = $url ? parse_url($url, PHP_URL_HOST) : config('database.connections.pgsql.host');
     }
 
     return response()->json([
